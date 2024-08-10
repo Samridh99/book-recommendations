@@ -5,28 +5,33 @@ This is a community-driven platform for sharing and exploring book recommendatio
 ## Setup
 
 1. Clone the repository:
+
    ```
    git clone https://github.com/yourusername/book-recommendations.git
    cd book-recommendations
    ```
 
 2. Create a virtual environment and activate it:
+
    ```
    python -m venv venv
    source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
    ```
 
 3. Install dependencies:
+
    ```
    pip install -r requirements.txt
    ```
 
 4. Apply migrations:
+
    ```
    python manage.py migrate
    ```
 
 5. Create a superuser:
+
    ```
    python manage.py createsuperuser
    ```
