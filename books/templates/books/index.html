@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BookBuddy - Your Community Book Recommendations</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        [v-cloak] { display: none; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div id="app" v-cloak>
+        <nav class="bg-blue-600 p-4 text-white">
+            <div class="container mx-auto flex justify-between items-center">
+                <h1 class="text-2xl font-bold">BookBuddy</h1>
+                <div>
+                    {% if user.is_authenticated %}
+                        <span class="mr-4">Welcome, {{ user.username }}!</span>
+                        <a href="{% url 'logout' %}" class="bg-red-500 hover:bg-red-600 px-4 py-2 rounded">Logout</a>
+                    {% else %}
+                        <a href="{% url 'login' %}" class="bg-green-500 hover:bg-green-600 px-4 py-2 rounded mr-2">Login</a>
+                        <a href="{% url 'register' %}" class="bg-yellow-500 hover:bg-yellow-600 px-4 py-2 rounded">Register</a>
+                    {% endif %}
+                </div>
+            </div>
+        </nav>
+
+        <main class="container mx-auto mt-8 p-4">
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold mb-4">Search for Books</h2>
+                <div class="flex">
+                    <input v-model="searchQuery" @keyup.enter="searchBooks" class="flex-grow p-2 border rounded-l" placeholder="Enter book title, author, or ISBN...">
+                    <button @click="searchBooks" class="bg-blue-500 text-white px-4 py-2 rounded-r hover:bg-blue-600">Search</button>
+                </div>
+            </div>
+
+            <div v-if="books.length" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div v-for="book in books" :key="book.id" class="bg-white p-4 rounded shadow">
+                    <img :src="book.volumeInfo.imageLinks?.thumbnail" :alt="book.volumeInfo.title" class="w-full h-64 object-cover mb-4">
+                    <h3 class="text-xl font-bold mb-2">${ book.volumeInfo.title }</h3>
+                    <p class="text-gray-600 mb-2">By ${ book.volumeInfo.authors ? book.volumeInfo.authors.join(', ') : 'Unknown' }</p>
+                    <p class="text-sm mb-4">${ book.volumeInfo.description ? book.volumeInfo.description.slice(0, 150) + '...' : 'No description available.' }</p>
+                    <button @click="addRecommendation(book)" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Recommend</button>
+                </div>
+            </div>
+
+            <div v-if="recommendations.length" class="mt-12">
+                <h2 class="text-2xl font-bold mb-4">Community Recommendations</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div v-for="recommendation in recommendations" :key="recommendation.id" class="bg-white p-4 rounded shadow">
+                        <h3 class="text-xl font-bold mb-2">${ recommendation.book.title }</h3>
+                        <p class="text-gray-600 mb-2">Recommended by: ${ recommendation.user }</p>
+                        <p class="text-sm mb-4">${ recommendation.comment }</p>
+                        <button @click="likeRecommendation(recommendation.id)" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                            Like (${ recommendation.likes_count })
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const csrfToken = '{{ csrf_token }}';
+        axios.defaults.headers.common['X-CSRFToken'] = csrfToken;
+
+        new Vue({
+            el: '#app',
+            delimiters: ['${', '}'],
+            data: {
+                searchQuery: '',
+                books: [],
+                recommendations: []
+            },
+            methods: {
+                searchBooks() {
+                    if (this.searchQuery.trim() === '') return;
+                    axios.get(`/api/books/search/?q=${this.searchQuery}`)
+                        .then(response => {
+                            this.books = response.data.items || [];
+                        })
+                        .catch(error => {
+                            console.error('Error searching books:', error);
+                            alert('An error occurred while searching for books. Please try again.');
+                        });
+                },
+                addRecommendation(book) {
+                    axios.post('/api/books/add_from_google_books/', { google_books_id: book.id })
+                        .then(response => {
+                            const bookId = response.data.id;
+                            return axios.post('/api/recommendations/', {
+                                book_id: bookId,
+                                comment: 'I recommend this book!'
+                            });
+                        })
+                        .then(() => {
+                            this.fetchRecommendations();
+                            alert('Book recommended successfully!');
+                        })
+                        .catch(error => {
+                            console.error('Error adding recommendation:', error);
+                            alert('make sure to login before recommending and liking books.');
+                        });
+                },
+                fetchRecommendations() {
+                    axios.get('/api/recommendations/')
+                        .then(response => {
+                            this.recommendations = response.data;
+                        })
+                        .catch(error => {
+                            console.error('Error fetching recommendations:', error);
+                            alert('make sure to login before recommending and liking books.');
+                        });
+                },
+                likeRecommendation(recommendationId) {
+                    axios.post(`/api/recommendations/${recommendationId}/like/`)
+                        .then(() => {
+                            this.fetchRecommendations();
+                        })
+                        .catch(error => {
+                            console.error('Error liking recommendation:', error);
+                            alert('make sure to login before recommending and liking books.');
+                        });
+                }
+            },
+            mounted() {
+                this.fetchRecommendations();
+            }
+        });
+    </script>
+</body>
+</html>
